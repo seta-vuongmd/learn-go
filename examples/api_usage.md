@@ -1,5 +1,6 @@
 # API Usage Examples
 
+## Mở http://localhost:8080/graphql để chạy lệnh graphql
 ## GraphQL - User Management
 
 ### Create User
@@ -27,6 +28,7 @@ mutation {
   }
 }
 ```
+# eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4YTJhMzkwY2NhNGY1ODNmZjllZThhYzA3YzQwNDczNiIsInJvbGUiOiJtYW5hZ2VyIiwiZXhwIjoxNzUzNDEzNjQwLCJpYXQiOjE3NTMzMjcyNDB9.Rlr_tRVdP5N5sXCdCTKNOqPQX1szuHGQK7w-YJVd7XA
 
 ## REST API - Team Management
 
