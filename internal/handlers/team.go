@@ -114,3 +114,90 @@ func (h *TeamHandler) isTeamManager(userID, teamID string) bool {
 	h.DB.Model(&models.TeamManager{}).Where("team_id = ? AND user_id = ?", teamID, userID).Count(&count)
 	return count > 0
 }
+
+func (h *TeamHandler) GetTeam(c *gin.Context) {
+	teamID := c.Param("teamId")
+	userID := c.GetString("userID")
+
+	if !h.isTeamMember(userID, teamID) && !h.isTeamManager(userID, teamID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not a team member"})
+		return
+	}
+
+	var team models.Team
+	if err := h.DB.Where("id = ?", teamID).First(&team).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Team not found"})
+		return
+	}
+
+	// Get managers
+	var managers []models.User
+	h.DB.Joins("JOIN team_managers ON users.id = team_managers.user_id").
+		Where("team_managers.team_id = ?", teamID).
+		Find(&managers)
+
+	// Get members
+	var members []models.User
+	h.DB.Joins("JOIN team_members ON users.id = team_members.user_id").
+		Where("team_members.team_id = ?", teamID).
+		Find(&members)
+
+	c.JSON(http.StatusOK, gin.H{
+		"team":     team,
+		"managers": managers,
+		"members":  members,
+	})
+}
+
+func (h *TeamHandler) isTeamMember(userID, teamID string) bool {
+	var count int64
+	h.DB.Model(&models.TeamMember{}).Where("team_id = ? AND user_id = ?", teamID, userID).Count(&count)
+	return count > 0
+}
+
+func (h *TeamHandler) GetAllTeams(c *gin.Context) {
+	userRole := c.GetString("role")
+
+	// Chỉ manager mới có thể xem tất cả teams
+	if userRole != "manager" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Manager role required"})
+		return
+	}
+
+	var teams []models.Team
+	if err := h.DB.Find(&teams).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch teams"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"teams": teams})
+}
+
+func (h *TeamHandler) SearchTeams(c *gin.Context) {
+	teamName := c.Query("name")
+	userID := c.GetString("userID")
+
+	var teams []models.Team
+	query := h.DB.Model(&models.Team{})
+
+	// Filter by name if provided
+	if teamName != "" {
+		query = query.Where("team_name ILIKE ?", "%"+teamName+"%")
+	}
+
+	// Only show teams where user is member or manager
+	query = query.Where(`
+		id IN (
+			SELECT team_id FROM team_managers WHERE user_id = ?
+			UNION
+			SELECT team_id FROM team_members WHERE user_id = ?
+		)
+	`, userID, userID)
+
+	if err := query.Find(&teams).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to search teams"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"teams": teams})
+}

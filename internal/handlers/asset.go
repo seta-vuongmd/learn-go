@@ -158,3 +158,54 @@ func (h *AssetHandler) isTeamManager(userID, teamID string) bool {
 	h.DB.Model(&models.TeamManager{}).Where("team_id = ? AND user_id = ?", teamID, userID).Count(&count)
 	return count > 0
 }
+
+func (h *AssetHandler) GetUserFolders(c *gin.Context) {
+	userID := c.GetString("userID")
+
+	// Get owned folders
+	var ownedFolders []models.Folder
+	h.DB.Preload("Notes").Where("owner_id = ?", userID).Find(&ownedFolders)
+
+	// Get shared folders
+	var sharedFolders []models.Folder
+	h.DB.Preload("Notes").
+		Joins("JOIN folder_shares ON folders.id = folder_shares.folder_id").
+		Where("folder_shares.user_id = ?", userID).
+		Find(&sharedFolders)
+
+	c.JSON(http.StatusOK, gin.H{
+		"ownedFolders":  ownedFolders,
+		"sharedFolders": sharedFolders,
+	})
+}
+
+func (h *AssetHandler) GetFolder(c *gin.Context) {
+	folderID := c.Param("folderId")
+	userID := c.GetString("userID")
+
+	if !h.canReadFolder(userID, folderID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "No access to this folder"})
+		return
+	}
+
+	var folder models.Folder
+	if err := h.DB.Preload("Notes").Where("id = ?", folderID).First(&folder).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Folder not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, folder)
+}
+
+func (h *AssetHandler) canReadFolder(userID, folderID string) bool {
+	// Check if user owns the folder
+	var count int64
+	h.DB.Model(&models.Folder{}).Where("id = ? AND owner_id = ?", folderID, userID).Count(&count)
+	if count > 0 {
+		return true
+	}
+
+	// Check if folder is shared with user
+	h.DB.Model(&models.FolderShare{}).Where("folder_id = ? AND user_id = ?", folderID, userID).Count(&count)
+	return count > 0
+}

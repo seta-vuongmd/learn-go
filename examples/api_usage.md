@@ -15,6 +15,18 @@ mutation {
 }
 ```
 
+### Fetch Users
+```graphql
+query {
+  fetchUsers {
+    userId
+    username
+    email
+    role
+  }
+}
+```
+
 ### Login
 ```graphql
 mutation {
