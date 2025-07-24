@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: user_team_asset_db
+      POSTGRES_USER: app_user
+      POSTGRES_PASSWORD: your_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://app_user:your_password@postgres:5432/user_team_asset_db?sslmode=disable
+      JWT_SECRET: your-super-secret-jwt-key-here
+      PORT: 8080
+    depends_on:
+      - postgres
+
+volumes:
+  postgres_data:
