@@ -109,6 +109,68 @@ func (h *TeamHandler) RemoveMember(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Member removed successfully"})
 }
 
+func (h *TeamHandler) AddManager(c *gin.Context) {
+	teamID := c.Param("teamId")
+	var req struct {
+		ManagerID string `json:"managerId" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID := c.GetString("userID")
+	if !h.isTeamManager(userID, teamID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to manage this team"})
+		return
+	}
+
+	// Check if user is already a manager
+	if h.isTeamManager(req.ManagerID, teamID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "User is already a manager"})
+		return
+	}
+
+	teamManager := models.TeamManager{
+		TeamID: teamID,
+		UserID: req.ManagerID,
+	}
+
+	if err := h.DB.Create(&teamManager).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add manager"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Manager added successfully"})
+}
+
+func (h *TeamHandler) RemoveManager(c *gin.Context) {
+	teamID := c.Param("teamId")
+	managerID := c.Param("managerId")
+	userID := c.GetString("userID")
+
+	if !h.isTeamManager(userID, teamID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Not authorized to manage this team"})
+		return
+	}
+
+	// Prevent removing the last manager
+	var managerCount int64
+	h.DB.Model(&models.TeamManager{}).Where("team_id = ?", teamID).Count(&managerCount)
+	if managerCount <= 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot remove the last manager"})
+		return
+	}
+
+	if err := h.DB.Where("team_id = ? AND user_id = ?", teamID, managerID).Delete(&models.TeamManager{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove manager"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Manager removed successfully"})
+}
+
 func (h *TeamHandler) isTeamManager(userID, teamID string) bool {
 	var count int64
 	h.DB.Model(&models.TeamManager{}).Where("team_id = ? AND user_id = ?", teamID, userID).Count(&count)

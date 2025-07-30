@@ -66,6 +66,10 @@ func (r *Resolver) CreateSchema() (graphql.Schema, error) {
 				},
 				Resolve: r.login,
 			},
+			"logout": &graphql.Field{
+				Type:    graphql.String,
+				Resolve: r.logout,
+			},
 		},
 	})
 
@@ -136,4 +140,10 @@ func (r *Resolver) fetchUsers(p graphql.ResolveParams) (interface{}, error) {
 		return nil, err
 	}
 	return users, nil
+}
+
+func (r *Resolver) logout(p graphql.ResolveParams) (interface{}, error) {
+	// With JWT, logout is typically handled client-side by removing the token
+	// Server-side logout would require token blacklisting which is not implemented here
+	return "Successfully logged out", nil
 }

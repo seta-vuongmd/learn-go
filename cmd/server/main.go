@@ -6,6 +6,7 @@ import (
 	"user-team-asset-management/internal/database"
 	"user-team-asset-management/internal/graphql"
 	"user-team-asset-management/internal/handlers"
+	"user-team-asset-management/internal/logger"
 	"user-team-asset-management/internal/middleware"
 
 	"github.com/gin-gonic/gin"
@@ -33,8 +34,13 @@ func main() {
 	teamHandler := &handlers.TeamHandler{DB: db}
 	assetHandler := &handlers.AssetHandler{DB: db}
 	userHandler := &handlers.UserHandler{DB: db}
+	importHandler := &handlers.ImportHandler{DB: db, JWTSecret: cfg.JWTSecret}
 
 	r := gin.Default()
+
+	// Add logging middleware
+	r.Use(logger.GinLogger())
+	r.Use(logger.Recovery())
 
 	// GraphQL endpoint
 	r.POST("/graphql", gin.WrapH(graphqlHandler))
@@ -56,6 +62,20 @@ func main() {
 
 		// Asset routes
 		api.GET("/folders/:folderId", assetHandler.GetFolder)
+		api.PUT("/folders/:folderId", assetHandler.UpdateFolder)
+		api.DELETE("/folders/:folderId", assetHandler.DeleteFolder)
+		api.GET("/notes/:noteId", assetHandler.GetNote)
+		api.PUT("/notes/:noteId", assetHandler.UpdateNote)
+		api.DELETE("/notes/:noteId", assetHandler.DeleteNote)
+
+		// Sharing routes
+		api.DELETE("/folders/:folderId/share/:userId", assetHandler.RevokeFolderShare)
+		api.POST("/notes/:noteId/share", assetHandler.ShareNote)
+		api.DELETE("/notes/:noteId/share/:userId", assetHandler.RevokeNoteShare)
+
+		// Manager-only routes
+		api.GET("/users/:userId/assets", assetHandler.GetUserAssets)
+		api.POST("/import-users", importHandler.ImportUsers)
 
 		// Team management (managers only)
 		teams := api.Group("/teams")
@@ -64,6 +84,8 @@ func main() {
 			teams.POST("", teamHandler.CreateTeam)
 			teams.POST("/:teamId/members", teamHandler.AddMember)
 			teams.DELETE("/:teamId/members/:memberId", teamHandler.RemoveMember)
+			teams.POST("/:teamId/managers", teamHandler.AddManager)
+			teams.DELETE("/:teamId/managers/:managerId", teamHandler.RemoveManager)
 			teams.GET("/all", teamHandler.GetAllTeams) // NEW: Get all teams (manager only)
 		}
 
